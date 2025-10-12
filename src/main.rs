@@ -42,7 +42,7 @@ fn main() -> anyhow::Result<()> {
             && file_path
                 .extension()
                 .and_then(|s| s.to_str())
-                .map_or(false, |ext| ext.eq_ignore_ascii_case("wav"))
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
         {
             match calculate_duration(file_path) {
                 Ok(duration) => {
@@ -114,4 +114,71 @@ fn print_stats(file_count: usize, durations: &[Duration], errors: &[String]) -> 
     println!("Number of errors/warnings: {}", errors.len());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_calculate_duration_valid_wav() -> anyhow::Result<()> {
+        let dir = TempDir::new()?;
+        let wav_path = dir.path().join("test.wav");
+        let mut file = File::create(&wav_path)?;
+        // Write minimal valid WAV header (44 bytes) + 1 second of silence at 44100 Hz, 1 channel, 16-bit
+        // Note: This is a simplified header; in practice, use hound to generate.
+        let header = include_bytes!("../test_data/minimal_wav_header.bin"); // Assume a test fixture binary
+        file.write_all(header)?;
+        file.write_all(&[0u8; 88200])?; // 1s of 16-bit samples
+
+        let duration = calculate_duration(&wav_path)?;
+        assert_eq!(duration.as_secs_f64(), 1.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_calculate_duration_empty_wav() {
+        let dir = TempDir::new().unwrap();
+        let wav_path = dir.path().join("empty.wav");
+        File::create(&wav_path).unwrap();
+
+        let result = calculate_duration(&wav_path);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Failed to read enough bytes."
+        );
+    }
+
+    #[test]
+    fn test_calculate_duration_non_wav() {
+        let dir = TempDir::new().unwrap();
+        let txt_path = dir.path().join("test.txt");
+        File::create(&txt_path).unwrap();
+
+        let result = calculate_duration(&txt_path);
+        assert!(result.is_err()); // hound::open fails on non-WAV
+    }
+
+    #[test]
+    fn test_print_stats_no_files() {
+        let durations: Vec<Duration> = Vec::new();
+        let errors: Vec<String> = Vec::new();
+        let result = print_stats(0, &durations, &errors);
+        assert!(result.is_ok());
+        // Output verification would require output capture
+    }
+
+    #[test]
+    fn test_print_stats_with_files() {
+        let durations = vec![Duration::from_secs(1), Duration::from_secs(2)];
+        let errors: Vec<String> = Vec::new();
+        let result = print_stats(2, &durations, &errors);
+        assert!(result.is_ok());
+        // Total: 3s, Avg: 1.5s, Min:1s, Max:2s (verification via expected output capture)
+    }
 }
