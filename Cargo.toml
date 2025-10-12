@@ -1,0 +1,10 @@
+[package]
+name = "wav-files-stats"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = { version = "4.5.48", features = ["derive"] }
+hound = "3.5.1"
+walkdir = "2.5.0"
