@@ -1,4 +1,4 @@
-# WAV Duration Stats CLI
+# wav-files-stats
 
 A lightweight Rust CLI tool to recursively scan a directory for WAV audio files, calculate their durations, and display pretty statistics like total duration, average, min, and max.
 
