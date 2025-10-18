@@ -1,6 +1,7 @@
 use clap::Parser;
 use hound::{WavReader, WavSpec};
 use std::path::{Path, PathBuf};
+use rayon::prelude::*;
 use std::time::Duration;
 use walkdir::WalkDir;
 
@@ -23,44 +24,32 @@ fn main() -> anyhow::Result<()> {
         anyhow::bail!("Provided path is not a directory: {}", path.display());
     }
 
-    let mut durations: Vec<Duration> = Vec::new();
-    let mut file_count: usize = 0;
-    let mut errors: Vec<String> = Vec::new();
-
-    for entry in WalkDir::new(&path).follow_links(false).into_iter() {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(e) => {
-                errors.push(format!("Failed to read entry: {}", e));
-                continue;
-            }
-        };
-
-        let file_path = entry.path();
-
-        if file_path.is_file()
-            && file_path
-                .extension()
-                .and_then(|s| s.to_str())
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
-        {
-            match calculate_duration(file_path) {
-                Ok(duration) => {
-                    durations.push(duration);
-                    file_count += 1;
+    let (durations, errors): (Vec<_>, Vec<_>) = WalkDir::new(&path)
+        .follow_links(false)
+        .into_iter()
+        .par_bridge() // Switch to a parallel iterator
+        .filter_map(|entry_result| {
+            match entry_result {
+                Ok(entry) => {
+                    let file_path = entry.path();
+                    if file_path.is_file() && file_path.extension().and_then(|s| s.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("wav")) {
+                        Some(match calculate_duration(file_path) {
+                            Ok(duration) => Ok(duration),
+                            Err(e) => Err(format!("Failed to read WAV file {}: {}", file_path.display(), e)),
+                        })
+                    } else {
+                        None // Not a .wav file, so we skip it.
+                    }
                 }
-                Err(e) => {
-                    errors.push(format!(
-                        "Failed to read WAV file {}: {}",
-                        file_path.display(),
-                        e
-                    ));
-                }
+                Err(e) => Some(Err(format!("Failed to read entry: {}", e))),
             }
-        }
-    }
+        })
+        .partition(Result::is_ok);
 
-    print_stats(file_count, &durations, &errors)?;
+    let durations: Vec<Duration> = durations.into_iter().map(Result::unwrap).collect();
+    let errors: Vec<String> = errors.into_iter().map(Result::unwrap_err).collect();
+
+    print_stats(durations.len(), &durations, &errors)?;
 
     if !errors.is_empty() {
         eprintln!("\nWarnings:");
@@ -93,15 +82,15 @@ fn print_stats(file_count: usize, durations: &[Duration], errors: &[String]) -> 
         return Ok(());
     }
 
-    let total_duration = durations.iter().sum::<Duration>();
+    let total_duration = durations.par_iter().sum::<Duration>();
     let average_duration = if file_count > 0 {
         total_duration / file_count as u32
     } else {
         Duration::ZERO
     };
 
-    let min_duration = durations.iter().min().unwrap_or(&Duration::ZERO);
-    let max_duration = durations.iter().max().unwrap_or(&Duration::ZERO);
+    let min_duration = durations.par_iter().min().unwrap_or(&Duration::ZERO);
+    let max_duration = durations.par_iter().max().unwrap_or(&Duration::ZERO);
 
     println!("\nWAV File Statistics:");
     println!("====================");
