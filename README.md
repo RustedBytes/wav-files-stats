@@ -73,3 +73,17 @@ See `Cargo.toml` for versions.
 3. Commit changes (`git commit -m 'Add some AmazingFeature'`).
 4. Push to the branch (`git push origin feature/AmazingFeature`).
 5. Open a Pull Request.
+
+
+## Cite
+
+```
+@software{Smoliakov_Wav_Files_Toolkit,
+  author = {Smoliakov, Yehor},
+  month = oct,
+  title = {{WAV Files Toolkit: A suite of command-line tools for common WAV audio processing tasks, including conversion from other formats, data augmentation, loudness normalization, spectrogram generation, and validation.}},
+  url = {https://github.com/RustedBytes/wav-files-toolkit},
+  version = {0.4.0},
+  year = {2025}
+}
+```
