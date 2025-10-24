@@ -76,6 +76,32 @@ fn calculate_duration(path: &Path) -> anyhow::Result<Duration> {
     Ok(duration)
 }
 
+/// Formats a `Duration` into a human-readable string like "1h 2m 3s".
+fn format_duration(duration: Duration) -> String {
+    let total_seconds = duration.as_secs();
+
+    if total_seconds == 0 {
+        return "0s".to_string();
+    }
+
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+
+    let mut parts = Vec::new();
+    if hours > 0 {
+        parts.push(format!("{}h", hours));
+    }
+    if minutes > 0 {
+        parts.push(format!("{}m", minutes));
+    }
+    if seconds > 0 {
+        parts.push(format!("{}s", seconds));
+    }
+
+    parts.join(" ")
+}
+
 fn print_stats(file_count: usize, durations: &[Duration], errors: &[String]) -> anyhow::Result<()> {
     if file_count == 0 {
         println!("No WAV files found in the directory tree.");
@@ -95,11 +121,11 @@ fn print_stats(file_count: usize, durations: &[Duration], errors: &[String]) -> 
     println!("\nWAV File Statistics:");
     println!("====================");
     println!("Total files processed: {}", file_count);
-    println!("Total duration: {:?}", total_duration);
-    println!("Average duration: {:?}", average_duration);
-    println!("Shortest file: {:?}", min_duration);
-    println!("Longest file: {:?}", max_duration);
-    println!("====================");
+    println!("Total duration: {}", format_duration(total_duration));
+    println!("Average duration: {}", format_duration(average_duration));
+    println!("Shortest file: {}", format_duration(*min_duration));
+    println!("Longest file: {}", format_duration(*max_duration));
+    println!("===================="); // This line is new, but it matches the README.md example.
     println!("Number of errors/warnings: {}", errors.len());
 
     Ok(())
@@ -169,5 +195,19 @@ mod tests {
         let result = print_stats(2, &durations, &errors);
         assert!(result.is_ok());
         // Total: 3s, Avg: 1.5s, Min:1s, Max:2s (verification via expected output capture)
+    }
+
+    #[test]
+    fn test_format_duration() {
+        assert_eq!(format_duration(Duration::from_secs(0)), "0s");
+        assert_eq!(format_duration(Duration::from_secs(45)), "45s");
+        assert_eq!(format_duration(Duration::from_secs(148)), "2m 28s");
+        assert_eq!(format_duration(Duration::from_secs(252)), "4m 12s");
+        assert_eq!(
+            format_duration(Duration::from_secs(3600 + 120 + 3)),
+            "1h 2m 3s"
+        );
+        assert_eq!(format_duration(Duration::from_secs(3600)), "1h");
+        assert_eq!(format_duration(Duration::from_secs(3603)), "1h 3s");
     }
 }
